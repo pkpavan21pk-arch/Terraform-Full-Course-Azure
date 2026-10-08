@@ -1,0 +1,207 @@
+trigger:
+  branches:
+    include:
+      - main
+      - feature/*
+  paths:
+    include:
+      - day26/*
+      - azure-pipeline.yml
+
+stages:
+
+# ============================================================
+# STAGE 1: TERRAFORM VALIDATION
+# ============================================================
+- stage: Validate
+  displayName: "Terraform Validate"
+
+  jobs:
+
+  # -----------------------------
+  # Validate Dev
+  # -----------------------------
+  - job: Validate_Dev
+    displayName: "Validate Dev"
+
+    pool:
+      vmImage: ubuntu-latest
+
+    steps:
+
+    - checkout: self
+
+    - task: TerraformInstaller@1
+      displayName: "Install Terraform"
+      inputs:
+        terraformVersion: "latest"
+
+    - task: TerraformTask@5
+      displayName: "Terraform Init - Dev"
+      inputs:
+        provider: "azurerm"
+        command: "init"
+        workingDirectory: "$(System.DefaultWorkingDirectory)/day26/dev"
+        backendServiceArm: "Pay-As-You-Go(171a17a7-9dc3-406d-878e-b33aee0551a2)"
+        backendAzureRmOverrideSubscriptionID: "171a17a7-9dc3-406d-878e-b33aee0551a2"
+        backendAzureRmResourceGroupName: "terraform-state-rg"
+        backendAzureRmStorageAccountName: "tfdevbackend2024pavan"
+        backendAzureRmContainerName: "tfstate"
+        backendAzureRmKey: "dev.terraform.tfstate"
+        backendAzureRmUseAzureADAuthentication: true
+
+    - task: TerraformTask@5
+      displayName: "Terraform Validate - Dev"
+      inputs:
+        provider: "azurerm"
+        command: "validate"
+        workingDirectory: "$(System.DefaultWorkingDirectory)/day26/dev"
+
+  # -----------------------------
+  # Validate Staging
+  # -----------------------------
+  - job: Validate_Staging
+    displayName: "Validate Staging"
+
+    pool:
+      vmImage: ubuntu-latest
+
+    steps:
+
+    - checkout: self
+
+    - task: TerraformInstaller@1
+      displayName: "Install Terraform"
+      inputs:
+        terraformVersion: "latest"
+
+    - task: TerraformTask@5
+      displayName: "Terraform Init - Staging"
+      inputs:
+        provider: "azurerm"
+        command: "init"
+        workingDirectory: "$(System.DefaultWorkingDirectory)/day26/staging"
+        backendServiceArm: "Pay-As-You-Go(171a17a7-9dc3-406d-878e-b33aee0551a2)"
+        backendAzureRmOverrideSubscriptionID: "171a17a7-9dc3-406d-878e-b33aee0551a2"
+        backendAzureRmResourceGroupName: "terraform-state-rg"
+        backendAzureRmStorageAccountName: "tfstagebackend2024pavan"
+        backendAzureRmContainerName: "tfstate"
+        backendAzureRmKey: "stage.terraform.tfstate"
+        backendAzureRmUseAzureADAuthentication: true
+
+    - task: TerraformTask@5
+      displayName: "Terraform Validate - Staging"
+      inputs:
+        provider: "azurerm"
+        command: "validate"
+        workingDirectory: "$(System.DefaultWorkingDirectory)/day26/staging"
+
+
+# ============================================================
+# STAGE 2: DEPLOY DEV
+# ============================================================
+- stage: Dev_Deploy
+  displayName: "Dev Deploy"
+
+  dependsOn: Validate
+
+  condition: and(
+    succeeded(),
+    eq(variables['Build.SourceBranch'], 'refs/heads/main')
+  )
+
+  jobs:
+
+  - job: Terraform_Apply_Dev
+    displayName: "Terraform Apply - Dev"
+
+    pool:
+      vmImage: ubuntu-latest
+
+    steps:
+
+    - checkout: self
+
+    - task: TerraformInstaller@1
+      displayName: "Install Terraform"
+      inputs:
+        terraformVersion: "latest"
+
+    - task: TerraformTask@5
+      displayName: "Terraform Init - Dev"
+      inputs:
+        provider: "azurerm"
+        command: "init"
+        workingDirectory: "$(System.DefaultWorkingDirectory)/day26/dev"
+        backendServiceArm: "Pay-As-You-Go(171a17a7-9dc3-406d-878e-b33aee0551a2)"
+        backendAzureRmOverrideSubscriptionID: "171a17a7-9dc3-406d-878e-b33aee0551a2"
+        backendAzureRmResourceGroupName: "terraform-state-rg"
+        backendAzureRmStorageAccountName: "tfdevbackend2024pavan"
+        backendAzureRmContainerName: "tfstate"
+        backendAzureRmKey: "dev.terraform.tfstate"
+        backendAzureRmUseAzureADAuthentication: true
+
+    - task: TerraformTask@5
+      displayName: "Terraform Apply - Dev"
+      inputs:
+        provider: "azurerm"
+        command: "apply"
+        workingDirectory: "$(System.DefaultWorkingDirectory)/day26/dev"
+        commandOptions: "-auto-approve"
+        environmentServiceNameAzureRM: "Pay-As-You-Go(171a17a7-9dc3-406d-878e-b33aee0551a2)"
+        environmentAzureRmOverrideSubscriptionID: "171a17a7-9dc3-406d-878e-b33aee0551a2"
+
+
+# ============================================================
+# STAGE 3: DEPLOY STAGING
+# ============================================================
+- stage: Stage_Deploy
+  displayName: "Staging Deploy"
+
+  dependsOn: Dev_Deploy
+
+  condition: and(
+    succeeded(),
+    eq(variables['Build.SourceBranch'], 'refs/heads/main')
+  )
+
+  jobs:
+
+  - job: Terraform_Apply_Staging
+    displayName: "Terraform Apply - Staging"
+
+    pool:
+      vmImage: ubuntu-latest
+
+    steps:
+
+    - checkout: self
+
+    - task: TerraformInstaller@1
+      displayName: "Install Terraform"
+      inputs:
+        terraformVersion: "latest"
+
+    - task: TerraformTask@5
+      displayName: "Terraform Init - Staging"
+      inputs:
+        provider: "azurerm"
+        command: "init"
+        workingDirectory: "$(System.DefaultWorkingDirectory)/day26/staging"
+        backendServiceArm: "Pay-As-You-Go(171a17a7-9dc3-406d-878e-b33aee0551a2)"
+        backendAzureRmOverrideSubscriptionID: "171a17a7-9dc3-406d-878e-b33aee0551a2"
+        backendAzureRmResourceGroupName: "terraform-state-rg"
+        backendAzureRmStorageAccountName: "tfstagebackend2024pavan"
+        backendAzureRmContainerName: "tfstate"
+        backendAzureRmKey: "stage.terraform.tfstate"
+        backendAzureRmUseAzureADAuthentication: true
+
+    - task: TerraformTask@5
+      displayName: "Terraform Apply - Staging"
+      inputs:
+        provider: "azurerm"
+        command: "apply"
+        workingDirectory: "$(System.DefaultWorkingDirectory)/day26/staging"
+        commandOptions: "-auto-approve"
+        environmentServiceNameAzureRM: "Pay-As-You-Go(171a17a7-9dc3-406d-878e-b33aee0551a2)"
+        environmentAzureRmOverrideSubscriptionID: "171a17a7-9dc3-406d-878e-b33aee0551a2"
