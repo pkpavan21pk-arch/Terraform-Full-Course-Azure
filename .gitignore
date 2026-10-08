@@ -5,3 +5,11 @@
 crash.log
 crash.*.log
 *.tfplan
+
+# Terraform
+**/.terraform/
+*.tfstate
+*.tfstate.*
+crash.log
+crash.*.log
+*.tfplan
